@@ -206,6 +206,12 @@ sub telegram_signal {
 	telegram_send_message($user, "${from}: ${msg}");
 }
 
+sub telegram_signal_private {
+	my ($server, $msg, $nick, $address, $target) = @_;
+
+	return telegram_signal($server, $msg, $nick, $address, undef);
+}
+
 sub telegram_idle {
         my ($text, $server, $item) = @_;
 
@@ -229,5 +235,5 @@ $debug = $cfg->param('debug');
 telegram_getupdates();
 
 Irssi::signal_add("message public", "telegram_signal");
-Irssi::signal_add("message private", "telegram_signal");
+Irssi::signal_add("message private", "telegram_signal_private");
 Irssi::signal_add('send text', 'telegram_idle');
