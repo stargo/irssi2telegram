@@ -34,6 +34,7 @@ my $cfgfile = $ENV{HOME}."/.irssi/telegram.cfg";
 
 my $token;
 my $user;
+my $matchPattern;
 
 my $idletime;
 my $longpoll;
@@ -199,7 +200,7 @@ sub telegram_signal {
 		$from .= "(${target})";
 	}
 
-	return if (!$query && !grep(/stargo/, $msg));
+	return if (!$query && !grep(/$matchPattern/, $msg));
 
 	$last_target = $target;
 	$last_server = $server;
@@ -221,6 +222,8 @@ sub telegram_idle {
 $cfg = new Config::Simple($cfgfile) || die "Can't open ${cfgfile}: $!";
 $token = $cfg->param('token') || die "No token defined in config!";
 $user = $cfg->param('user') || die "No user defined in config!";
+$matchPattern = $cfg->param('matchPattern');
+$matchPattern = "." if (!defined($matchPattern));
 
 $idletime = $cfg->param('idletime');
 $idletime = "300" if (!defined($idletime));
