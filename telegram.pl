@@ -45,6 +45,7 @@ my $debug;
 
 my $last_ts = 0;
 my $offset = -1;
+my %servers; # maps channels to servers
 my $last_target;
 my $last_server;
 
@@ -79,10 +80,29 @@ sub telegram_handle_message {
 		next if (!defined($last_target));
 		next if (!defined($last_server));
 
-		my $cmd = "msg ${last_target} ".$msg->{message}->{text};
-		print $cmd if ($debug);
-		$last_server->command($cmd);
-		telegram_send_message($user, "->${last_target}");
+		my $firstLetter = substr($msg->{message}->{text}, 0, 1);
+		if ($firstLetter eq "#") {
+			# post in specific channel
+			my $idx = index($msg->{message}->{text}, ' ');
+			my $chan = substr($msg->{message}->{text}, 0, $idx);
+			my $text = substr($msg->{message}->{text}, $idx+1);
+			my $cmd = "msg ${chan} ".$text;
+			print $cmd if ($debug);
+			my $srv = $servers{$chan};
+			if (defined $srv) {
+				$srv->command($cmd);
+				telegram_send_message($user, "->$chan");
+			} else {
+				print "no server known for channel '$chan'";
+				telegram_send_message($user, "no server known for channel '$chan'");
+			}
+		} else {
+			# post in last channel
+			my $cmd = "msg ${last_target} ".$msg->{message}->{text};
+			print $cmd if ($debug);
+			$last_server->command($cmd);
+			telegram_send_message($user, "->${last_target}");
+		}
 	}
 }
 
@@ -204,6 +224,7 @@ sub telegram_signal {
 
 	$last_target = $target;
 	$last_server = $server;
+	$servers{$target} = $server;
 	telegram_send_message($user, "${from}: ${msg}");
 }
 
