@@ -194,6 +194,7 @@ sub telegram_https {
 sub telegram_send_message($$) {
 	my ($chat, $msg) = @_;
 
+	utf8::decode($msg);
 	my $uri = URI::Encode->new({encode_reserved => 1});
 	my $encoded = $uri->encode("${msg}");
 
