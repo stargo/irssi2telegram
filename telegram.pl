@@ -175,6 +175,7 @@ sub telegram_poke {
 				print $rsp->decoded_content if ($debug);
 			}
 		}
+		$done = 1;
 	}
 
 	if ($done) {
