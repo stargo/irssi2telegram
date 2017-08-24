@@ -59,7 +59,12 @@ sub telegram_handle_message {
 	return if (!defined($json->{result}));
 
 	foreach my $msg (@{$json->{result}}) {
-		$offset = $msg->{update_id} if (defined($msg->{update_id}) && ($offset < $msg->{update_id}));
+		#Ignore messages without id
+		next if (!defined($msg->{update_id}));
+		#Ignore messages already seen
+		next if ($msg->{update_id} <= $offset);
+		$offset = $msg->{update_id};
+
 		next if (!defined($msg->{message}));
 
 		next if (!defined($msg->{message}->{text}));
