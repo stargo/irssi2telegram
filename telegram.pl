@@ -43,13 +43,14 @@ my $cfg;
 
 my $debug;
 
+my $last_poll = 0;
 my $last_ts = 0;
 my $offset = -1;
 my %servers; # maps channels to servers
 my $last_target;
 my $last_server;
 
-sub telegram_getupdates();
+sub telegram_getupdates($);
 sub telegram_send_message($$);
 
 sub telegram_handle_message {
@@ -130,7 +131,7 @@ sub telegram_connect {
 		$source->{tag} = Irssi::input_add(fileno($source->{s}), Irssi::INPUT_WRITE, "telegram_connect", $source);
 	} else {
 		$source->{s}->close();
-		telegram_getupdates() if ($source->{poll});
+		telegram_getupdates($source) if ($source->{poll});
 	}
 }
 
@@ -182,7 +183,9 @@ sub telegram_poke {
 		print "Request done" if ($debug);
 		Irssi::input_remove($source->{tag}) if (defined($source->{tag}));
 		$source->{s}->close();
-		telegram_getupdates() if ($source->{poll});
+		if ($source->{poll}) {
+			telegram_getupdates($source);
+		}
 	}
 }
 
@@ -192,7 +195,8 @@ sub telegram_https {
 	my $s = Net::HTTPS::NB->new(Host => "api.telegram.org", SSL_verifycn_name => "api.telegram.org", Blocking => 0) || return;
 	$s->blocking(0);
 
-	my $source = { s => $s, uri => $uri, poll => $poll };
+	my $source = { s => $s, uri => $uri, poll => $poll, time => time() };
+	$last_poll = $source->{time} if ($poll);
 
 	telegram_connect($source);
 }
@@ -207,7 +211,16 @@ sub telegram_send_message($$) {
 	telegram_https("/bot${token}/sendMessage?chat_id=${chat}&text=${encoded}", undef);
 }
 
-sub telegram_getupdates() {
+sub telegram_getupdates($) {
+	my ($source) = @_;
+
+	#If we have already started another longpoll, don't restart the
+	#old one
+	if (defined($source) && $source->{poll} && $source->{time} != $last_poll) {
+		print "Removing getupdate request as token differs: $source->{time} != ${last_poll}";
+		return;
+	}
+
 	telegram_https("/bot${token}/getUpdates?offset=".($offset + 1)."&timeout=${longpoll}", 1);
 }
 
@@ -216,6 +229,8 @@ sub telegram_signal {
 
 	my $query = 0;
 	my $from = $nick;
+
+	telegram_getupdates(undef) if ($last_poll < (time() - ($longpoll * 2)));
 
 	print "Idle: " . (time() - $last_ts) if ($debug);
 	return if ((time() - $last_ts < $idletime) && !$debug);
@@ -263,7 +278,7 @@ $longpoll = int($longpoll);
 
 $debug = $cfg->param('debug');
 
-telegram_getupdates();
+telegram_getupdates(undef);
 
 Irssi::signal_add("message public", "telegram_signal");
 Irssi::signal_add("message private", "telegram_signal_private");
