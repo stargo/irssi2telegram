@@ -118,7 +118,7 @@ sub telegram_connect {
 	Irssi::input_remove($source->{tag}) if (defined($source->{tag}));
 
 	#$source->{s}->connect_SSL is needed when run in irssi for some reason...
-	if ($source->{s}->connected || $source->{s}->connect_SSL) {
+	if ($source->{s}->connected || ($source->{s}->can('connect_SSL') && $source->{s}->connect_SSL)) {
 		$source->{s}->write_request(GET => $source->{uri});
 		$source->{tag} = Irssi::input_add(fileno($source->{s}), Irssi::INPUT_READ, "telegram_poke", $source);
 		print "Add ".$source->{tag} if ($debug);
