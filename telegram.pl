@@ -86,12 +86,10 @@ sub telegram_handle_message {
 		next if (!defined($last_target));
 		next if (!defined($last_server));
 
-		my $firstLetter = substr($msg->{message}->{text}, 0, 1);
-		if ($firstLetter eq "#") {
+		if ($msg->{message}->{text} =~ m/^[#@]/) {
 			# post in specific channel
-			my $idx = index($msg->{message}->{text}, ' ');
-			my $chan = substr($msg->{message}->{text}, 0, $idx);
-			my $text = substr($msg->{message}->{text}, $idx+1);
+			(my $chan, my $text) = split(/ /, $msg->{message}->{text}, 2);
+			$chan =~ s/^\@//;
 			my $cmd = "msg ${chan} ".$text;
 			print $cmd if ($debug);
 			my $srv = $servers{$chan};
