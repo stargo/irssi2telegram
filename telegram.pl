@@ -230,9 +230,6 @@ sub telegram_signal {
 
 	telegram_getupdates(undef) if ($last_poll < (time() - ($longpoll * 2)));
 
-	print "Idle: " . (time() - $last_ts) if ($debug);
-	return if ((time() - $last_ts < $idletime) && !$debug);
-
 	if (!defined($target)) {
 		$target = $nick;
 		$query = 1;
@@ -240,11 +237,15 @@ sub telegram_signal {
 		$from .= "(${target})";
 	}
 
+	$servers{$target} = $server;
+
+	print "Idle: " . (time() - $last_ts) if ($debug);
+	return if ((time() - $last_ts < $idletime) && !$debug);
+
 	return if (!$query && !grep(/$matchPattern/, $msg));
 
 	$last_target = $target;
 	$last_server = $server;
-	$servers{$target} = $server;
 	telegram_send_message($user, "${from}: ${msg}");
 }
 
