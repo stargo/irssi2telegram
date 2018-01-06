@@ -39,6 +39,9 @@ my $matchPattern;
 my $idletime;
 my $longpoll;
 
+my $baseURL;
+my $localPath;
+
 my $cfg;
 
 my $debug;
@@ -52,6 +55,68 @@ my $last_server;
 
 sub telegram_getupdates($);
 sub telegram_send_message($$);
+sub telegram_https($$$$);
+
+sub telegram_send_to_irc($;$) {
+	my ($text, $data) = @_;
+
+	if ($text =~ m/^[#@]/) {
+		# post in specific channel
+		(my $chan, my $text) = split(/ /, $text, 2);
+		$chan =~ s/^\@//;
+		my $cmd = "msg ${chan} ".$text;
+		print $cmd if ($debug);
+		my $srv = $servers{$chan};
+		if (!defined($srv)) {
+			my @targets = ();
+			if ($chan =~ m/^#/) {
+				@targets = Irssi::channels();
+			} else {
+				@targets = Irssi::queries();
+			}
+
+			foreach my $target (@targets) {
+				if ($target->{name} eq $chan) {
+					$srv = $target->{server};
+					last;
+				}
+			}
+		}
+		if (defined $srv) {
+			if (length($text)) {
+				$srv->command($cmd);
+				telegram_send_message($user, "->${chan}");
+			} else {
+				telegram_send_message($user, "${chan} on $srv->{tag} selected as next target.");
+			}
+			$last_target = $chan;
+			$last_server = $srv;
+		} else {
+			print "no server known for channel '$chan'";
+			telegram_send_message($user, "no server known for channel '$chan'");
+		}
+	} else {
+		# post in last channel
+		my $target = $last_target;
+		my $server = $last_server;
+
+		$target = $data->{last_target} if (defined($data->{last_target}));
+		$server = $data->{last_server} if (defined($data->{last_server}));
+
+		if ((!defined($target)) || (!defined($server))) {
+			telegram_send_message($user, "Can't determine target to send message to. Please specify either a channel with #channel or query with \@nick.");
+			return;
+		}
+
+		my $cmd = "msg ${target} ".$text;
+		print $cmd if ($debug);
+		$server->command($cmd);
+		telegram_send_message($user, "->${target}");
+
+		$last_target = $target;
+		$last_server = $server;
+	}
+}
 
 sub telegram_handle_message {
 	my ($json) = @_;
@@ -68,8 +133,6 @@ sub telegram_handle_message {
 
 		next if (!defined($msg->{message}));
 
-		next if (!defined($msg->{message}->{text}));
-
 		next if (!defined($msg->{message}->{from}));
 		next if (!defined($msg->{message}->{from}->{id}));
 		if ($msg->{message}->{from}->{id} ne $user) {
@@ -83,47 +146,70 @@ sub telegram_handle_message {
 		next if (!defined($msg->{message}->{chat}->{id}));
 		next if ($msg->{message}->{chat}->{id} ne $user);
 
-		if ($msg->{message}->{text} =~ m/^[#@]/) {
-			# post in specific channel
-			(my $chan, my $text) = split(/ /, $msg->{message}->{text}, 2);
-			$chan =~ s/^\@//;
-			my $cmd = "msg ${chan} ".$text;
-			print $cmd if ($debug);
-			my $srv = $servers{$chan};
-			if (!defined($srv)) {
-				my @targets = ();
-				if ($chan =~ m/^#/) {
-					@targets = Irssi::channels();
-				} else {
-					@targets = Irssi::queries();
-				}
+		my $text = $msg->{message}->{text};
+		if (!defined($text)) {
+			my $data;
+			$data->{text} = $msg->{message}->{caption};
+			$data->{last_target} = $last_target;
+			$data->{last_server} = $last_server;
 
-				foreach my $target (@targets) {
-					if ($target->{name} eq $chan) {
-						$srv = $target->{server};
+			my $file;
+			if (defined($msg->{message}->{photo})) {
+				my $photo = ${$msg->{message}->{photo}}[$#{$msg->{message}->{photo}}];
+				$file = $photo->{file_id} if (defined($photo));
+			} else {
+				foreach my $doctype (qw(document video audio voice video_note)) {
+					if (defined($msg->{message}->{$doctype})) {
+						$file = $msg->{message}->{$doctype}->{file_id};
 						last;
 					}
 				}
 			}
-			if (defined $srv) {
-				$srv->command($cmd);
-				telegram_send_message($user, "->$chan");
-			} else {
-				print "no server known for channel '$chan'";
-				telegram_send_message($user, "no server known for channel '$chan'");
-			}
-		} else {
-			# post in last channel
-			next if (!defined($last_target));
-			next if (!defined($last_server));
 
-			my $cmd = "msg ${last_target} ".$msg->{message}->{text};
-			print $cmd if ($debug);
-			$last_server->command($cmd);
-			telegram_send_message($user, "->${last_target}");
+			if (defined($file) && defined($baseURL) && defined($localPath)) {
+				print("Requesting ".$file) if ($debug);
+				$data->{file_id} = $file;
+				telegram_https("/bot${token}/getFile?file_id=${file}", undef, undef, $data);
+			}
+
+			next;
 		}
+
+		next if (!defined($text));
+
+		telegram_send_to_irc($text);
 	}
 }
+
+sub telegram_handle_response {
+	my ($rsp, $data) = @_;
+
+	if (defined($data->{file_id}) && (!defined($data->{file_path}))) {
+		my $json = decode_json($rsp);
+		return if (!defined($json));
+		return if (!defined($json->{result}));
+		return if (!defined($json->{result}->{file_path}));
+		print("Downloading ".$json->{result}->{file_path}) if ($debug);
+
+		$data->{file_path} = $json->{result}->{file_path};
+
+		telegram_https("/file/bot${token}/".$json->{result}->{file_path}, undef, undef, $data);
+	} else {
+		my $fname = $data->{file_id} . "_" . $data->{file_path};
+		$fname =~ s/\//_/g;
+		$fname = $fname;
+		print("Saving download as ".$localPath."/".$fname) if ($debug);
+		open(my $fd, ">", $localPath."/".$fname) or return;
+		print $fd $rsp;
+		close($fd);
+
+		my $text = $baseURL . "/" . $fname;
+		$text = $data->{text} . " " . $text if (defined($data->{text}));
+
+		telegram_send_to_irc($text, $data);
+	}
+}
+
 
 sub telegram_connect {
 	my ($source) = @_;
@@ -132,7 +218,11 @@ sub telegram_connect {
 
 	#$source->{s}->connect_SSL is needed when run in irssi for some reason...
 	if ($source->{s}->connected || ($source->{s}->can('connect_SSL') && $source->{s}->connect_SSL)) {
-		$source->{s}->write_request(GET => $source->{uri});
+		if (defined($source->{body})) {
+			$source->{s}->write_request("POST", $source->{uri}, ("Content-Type" => "application/json"), $source->{body});
+		} else {
+			$source->{s}->write_request("GET", $source->{uri});
+		}
 		$source->{tag} = Irssi::input_add(fileno($source->{s}), Irssi::INPUT_READ, "telegram_poke", $source);
 		print "Add ".$source->{tag} if ($debug);
 		return;
@@ -179,14 +269,18 @@ sub telegram_poke {
 	$source->{buf} .= $buf if (length($buf));
 
 	if (defined($n) && $n == 0 && defined($source->{buf})) {
-		my $rsp = HTTP::Response->parse($buf);
+		my $rsp = HTTP::Response->parse($source->{buf});
 		if ($rsp->is_success) {
-			my $json = decode_json($rsp->decoded_content);
-			if (defined($json)) {
-				print Dumper($json) if ($debug);
-				telegram_handle_message($json) if ($source->{poll});
+			if (defined($source->{data})) {
+				telegram_handle_response($rsp->decoded_content, $source->{data});
 			} else {
-				print $rsp->decoded_content if ($debug);
+				my $json = decode_json($rsp->decoded_content);
+				if (defined($json)) {
+					print Dumper($json) if ($debug);
+					telegram_handle_message($json) if ($source->{poll});
+				} else {
+					print $rsp->decoded_content if ($debug);
+				}
 			}
 		}
 		$done = 1;
@@ -202,13 +296,13 @@ sub telegram_poke {
 	}
 }
 
-sub telegram_https {
-	my ($uri, $poll) = @_;
+sub telegram_https($$$$) {
+	my ($uri, $body, $poll, $data) = @_;
 
 	my $s = Net::HTTPS::NB->new(Host => "api.telegram.org", SSL_verifycn_name => "api.telegram.org", Blocking => 0) || return;
 	$s->blocking(0);
 
-	my $source = { s => $s, uri => $uri, poll => $poll, time => time() };
+	my $source = { s => $s, uri => $uri, poll => $poll, time => time(), body => $body, data => $data };
 	$last_poll = $source->{time} if ($poll);
 
 	telegram_connect($source);
@@ -218,10 +312,11 @@ sub telegram_send_message($$) {
 	my ($chat, $msg) = @_;
 
 	utf8::decode($msg);
-	my $uri = URI::Encode->new({encode_reserved => 1});
-	my $encoded = $uri->encode("${msg}");
 
-	telegram_https("/bot${token}/sendMessage?chat_id=${chat}&text=${encoded}", undef);
+	my $body = { chat_id => $chat, text => $msg };
+	$body = encode_json($body);
+	telegram_https("/bot${token}/sendMessage", $body, undef, undef);
+	print $body if ($debug);
 }
 
 sub telegram_getupdates($) {
@@ -234,7 +329,7 @@ sub telegram_getupdates($) {
 		return;
 	}
 
-	telegram_https("/bot${token}/getUpdates?offset=".($offset + 1)."&timeout=${longpoll}", 1);
+	telegram_https("/bot${token}/getUpdates?offset=".($offset + 1)."&timeout=${longpoll}", undef, 1, undef);
 }
 
 sub telegram_signal {
@@ -289,6 +384,9 @@ $idletime = int($idletime);
 $longpoll = $cfg->param('longpoll');
 $longpoll = "600" if (!defined($longpoll));
 $longpoll = int($longpoll);
+
+$baseURL = $cfg->param('baseURL');
+$localPath = $cfg->param('localPath');
 
 $debug = $cfg->param('debug');
 
