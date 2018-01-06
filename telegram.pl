@@ -92,8 +92,8 @@ sub telegram_send_to_irc($;$) {
 			$last_target = $chan;
 			$last_server = $srv;
 		} else {
-			print "no server known for channel '$chan'";
-			telegram_send_message($user, "no server known for channel '$chan'");
+			print "no server known for ".(($chan =~ m/^#/)?"channel":"nick")." '$chan'" if ($debug);
+			telegram_send_message($user, "no server known for ".(($chan =~ m/^#/)?"channel":"nick")." '$chan'");
 		}
 	} else {
 		# post in last channel
