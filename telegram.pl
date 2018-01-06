@@ -100,8 +100,8 @@ sub telegram_send_to_irc($;$) {
 		my $target = $last_target;
 		my $server = $last_server;
 
-		$target = $data->{last_target} if (defined($data->{last_target}));
-		$server = $data->{last_server} if (defined($data->{last_server}));
+		$target = $data->{last_target} if (defined($data) && defined($data->{last_target}));
+		$server = $data->{last_server} if (defined($data) && defined($data->{last_server}));
 
 		if ((!defined($target)) || (!defined($server))) {
 			telegram_send_message($user, "Can't determine target to send message to. Please specify either a channel with #channel or query with \@nick.");
