@@ -83,9 +83,6 @@ sub telegram_handle_message {
 		next if (!defined($msg->{message}->{chat}->{id}));
 		next if ($msg->{message}->{chat}->{id} ne $user);
 
-		next if (!defined($last_target));
-		next if (!defined($last_server));
-
 		if ($msg->{message}->{text} =~ m/^[#@]/) {
 			# post in specific channel
 			(my $chan, my $text) = split(/ /, $msg->{message}->{text}, 2);
@@ -93,6 +90,21 @@ sub telegram_handle_message {
 			my $cmd = "msg ${chan} ".$text;
 			print $cmd if ($debug);
 			my $srv = $servers{$chan};
+			if (!defined($srv)) {
+				my @targets = ();
+				if ($chan =~ m/^#/) {
+					@targets = Irssi::channels();
+				} else {
+					@targets = Irssi::queries();
+				}
+
+				foreach my $target (@targets) {
+					if ($target->{name} eq $chan) {
+						$srv = $target->{server};
+						last;
+					}
+				}
+			}
 			if (defined $srv) {
 				$srv->command($cmd);
 				telegram_send_message($user, "->$chan");
@@ -102,6 +114,9 @@ sub telegram_handle_message {
 			}
 		} else {
 			# post in last channel
+			next if (!defined($last_target));
+			next if (!defined($last_server));
+
 			my $cmd = "msg ${last_target} ".$msg->{message}->{text};
 			print $cmd if ($debug);
 			$last_server->command($cmd);
