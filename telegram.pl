@@ -112,9 +112,6 @@ sub telegram_send_to_irc($;$) {
 		print $cmd if ($debug);
 		$server->command($cmd);
 		telegram_send_message($user, "->${target}");
-
-		$last_target = $target;
-		$last_server = $server;
 	}
 }
 
