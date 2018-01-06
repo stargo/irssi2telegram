@@ -170,10 +170,9 @@ sub telegram_handle_message {
 				telegram_https("/bot${token}/getFile?file_id=${file}", undef, undef, $data);
 			}
 
+			telegram_send_message($user, "Unsupported message type!");
 			next;
 		}
-
-		next if (!defined($text));
 
 		telegram_send_to_irc($text);
 	}
