@@ -29,6 +29,7 @@ use IO::Select;
 use JSON;
 use Config::Simple;
 use Errno qw/EAGAIN EWOULDBLOCK/;
+use encoding 'utf8';
 
 my $cfgfile = $ENV{HOME}."/.irssi/telegram.cfg";
 
