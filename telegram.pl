@@ -54,7 +54,7 @@ my $last_target;
 my $last_server;
 
 sub telegram_getupdates($);
-sub telegram_send_message($$);
+sub telegram_send_message($$;$);
 sub telegram_https($$$$);
 
 sub telegram_send_to_irc($;$) {
@@ -87,7 +87,7 @@ sub telegram_send_to_irc($;$) {
 				$srv->command($cmd);
 				telegram_send_message($user, "->${chan}");
 			} else {
-				telegram_send_message($user, "${chan} on $srv->{tag} selected as next target.");
+				telegram_send_message($user, "${chan} on $srv->{tag} selected as new target.");
 			}
 			$last_target = $chan;
 			$last_server = $srv;
@@ -308,12 +308,13 @@ sub telegram_https($$$$) {
 	telegram_connect($source);
 }
 
-sub telegram_send_message($$) {
-	my ($chat, $msg) = @_;
+sub telegram_send_message($$;$) {
+	my ($chat, $msg, $reply_markup) = @_;
 
 	utf8::decode($msg);
 
-	my $body = { chat_id => $chat, text => $msg };
+	my $body = { chat_id => $chat, text => $msg, reply_markup => $reply_markup };
+	$body->{reply_markup} = {remove_keyboard => JSON::true} if (!defined($reply_markup));
 	$body = encode_json($body);
 	telegram_https("/bot${token}/sendMessage", $body, undef, undef);
 	print $body if ($debug);
@@ -354,9 +355,22 @@ sub telegram_signal {
 
 	return if (!$query && !grep(/$matchPattern/, $msg));
 
-	$last_target = $target;
-	$last_server = $server;
-	telegram_send_message($user, "${from}: ${msg}");
+	my $reply_markup;
+	if ((!defined($last_target)) ||
+	    (!defined($last_server)) ||
+	    ($target ne $last_target) ||
+	    ($server->{tag} ne $last_server->{tag})) {
+		my $dst = $target;
+		$dst = '@'.$dst if ($dst !~ m/^#/);
+		$reply_markup = {
+			keyboard => [
+					[{text => $dst}],
+				],
+			one_time_keyboard => JSON::true,
+			};
+	}
+
+	telegram_send_message($user, "${from}: ${msg}", $reply_markup);
 }
 
 sub telegram_signal_private {
