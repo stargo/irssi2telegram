@@ -158,9 +158,10 @@ sub telegram_handle_message {
 				my $photo = ${$msg->{message}->{photo}}[$#{$msg->{message}->{photo}}];
 				$file = $photo->{file_id} if (defined($photo));
 			} else {
-				foreach my $doctype (qw(document video audio voice video_note)) {
+				foreach my $doctype (qw(document video audio voice video_note sticker)) {
 					if (defined($msg->{message}->{$doctype})) {
 						$file = $msg->{message}->{$doctype}->{file_id};
+						$data->{extension} = ".webp" if ($doctype eq "sticker");
 						last;
 					}
 				}
@@ -197,7 +198,7 @@ sub telegram_handle_response {
 	} else {
 		my $fname = $data->{file_id} . "_" . $data->{file_path};
 		$fname =~ s/\//_/g;
-		$fname = $fname;
+		$fname .= $data->{extension} if (defined($data->{extension}) && $fname !~ m/$data->{extension}$/);
 		print("Saving download as ".$localPath."/".$fname) if ($debug);
 		open(my $fd, ">", $localPath."/".$fname) or return;
 		print $fd $rsp;
