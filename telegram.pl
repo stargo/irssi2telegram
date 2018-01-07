@@ -167,7 +167,8 @@ sub telegram_handle_message {
 			if (defined($file) && defined($baseURL) && defined($localPath)) {
 				print("Requesting ".$file) if ($debug);
 				$data->{file_id} = $file;
-				telegram_https("/bot${token}/getFile?file_id=${file}", undef, undef, $data);
+				my $body = { file_id => $file };
+				telegram_https("/bot${token}/getFile", encode_json($body), undef, $data);
 			}
 
 			telegram_send_message($user, "Unsupported message type!") if (!defined($file));
