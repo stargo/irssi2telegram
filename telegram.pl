@@ -141,6 +141,8 @@ sub telegram_handle_message {
 		next if ($msg->{update_id} <= $offset);
 		$offset = $msg->{update_id};
 
+		$msg->{message} = $msg->{edited_message} if (defined($msg->{edited_message}) && (!defined($msg->{message})));
+
 		next if (!defined($msg->{message}));
 
 		next if (!defined($msg->{message}->{from}));
