@@ -52,6 +52,7 @@ my $offset = -1;
 my %servers; # maps channels to servers
 my $last_target;
 my $last_server;
+my $sendchan = undef;
 
 sub telegram_getupdates($);
 sub telegram_send_message($$;$);
@@ -64,6 +65,13 @@ sub telegram_send_to_irc($;$) {
 		# post in specific channel
 		(my $chan, my $text) = split(/ /, $text, 2);
 		$chan =~ s/^\@//;
+
+		my $modifier;
+		if ($chan =~ m/^(#.+),(.+)$/) {
+			$chan = $1;
+			$modifier = $2;
+		}
+
 		my $cmd = "msg ${chan} ".$text;
 		print $cmd if ($debug);
 		my $srv = $servers{$chan};
@@ -87,7 +95,12 @@ sub telegram_send_to_irc($;$) {
 				$srv->command($cmd);
 				telegram_send_message($user, "->${chan}");
 			} else {
-				telegram_send_message($user, "${chan} on $srv->{tag} selected as new target.");
+				telegram_send_message($user, "${chan} on $srv->{tag} ".(defined($modifier)?"(${modifier}) ":"")."selected as new target.");
+				if ($modifier eq "all") {
+					$sendchan = $chan;
+				} else {
+					$sendchan = undef;
+				}
 			}
 			$last_target = $chan;
 			$last_server = $srv;
@@ -351,7 +364,7 @@ sub telegram_signal {
 	print "Idle: " . (time() - $last_ts) if ($debug);
 	return if ((time() - $last_ts < $idletime) && !$debug);
 
-	return if (!$query && !grep(/$matchPattern/, $msg));
+	return if (!$query && !grep(/$matchPattern/, $msg) && ((!defined($sendchan)) || $sendchan ne $target));
 
 	my $reply_markup;
 	if ((!defined($last_target)) ||
@@ -360,12 +373,14 @@ sub telegram_signal {
 	    ($server->{tag} ne $last_server->{tag})) {
 		my $dst = $target;
 		$dst = '@'.$dst if ($dst !~ m/^#/);
+		my @kbd = [{text => $dst}];
+		push @{$kbd[0]}, {text => $dst.",all"} if ($dst =~ m/^#/);
 		$reply_markup = {
 			keyboard => [
-					[{text => $dst}],
-				],
+					@kbd,
+			],
 			one_time_keyboard => JSON::true,
-			};
+		};
 	}
 
 	telegram_send_message($user, "${from}: ${msg}", $reply_markup);
