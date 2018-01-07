@@ -279,18 +279,20 @@ sub telegram_poke {
 
 	$source->{buf} .= $buf if (length($buf));
 
-	if (defined($n) && $n == 0 && defined($source->{buf})) {
-		my $rsp = HTTP::Response->parse($source->{buf});
-		if ($rsp->is_success) {
-			if (defined($source->{data})) {
-				telegram_handle_response($rsp->decoded_content, $source->{data});
-			} else {
-				my $json = decode_json($rsp->decoded_content);
-				if (defined($json)) {
-					print Dumper($json) if ($debug);
-					telegram_handle_message($json) if ($source->{poll});
+	if (defined($n) && $n == 0) {
+		if (defined($source->{buf})) {
+			my $rsp = HTTP::Response->parse($source->{buf});
+			if ($rsp->is_success) {
+				if (defined($source->{data})) {
+					telegram_handle_response($rsp->decoded_content, $source->{data});
 				} else {
-					print $rsp->decoded_content if ($debug);
+					my $json = decode_json($rsp->decoded_content);
+					if (defined($json)) {
+						print Dumper($json) if ($debug);
+						telegram_handle_message($json) if ($source->{poll});
+					} else {
+						print $rsp->decoded_content if ($debug);
+					}
 				}
 			}
 		}
