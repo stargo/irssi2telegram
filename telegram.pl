@@ -170,7 +170,7 @@ sub telegram_handle_message {
 				telegram_https("/bot${token}/getFile?file_id=${file}", undef, undef, $data);
 			}
 
-			telegram_send_message($user, "Unsupported message type!");
+			telegram_send_message($user, "Unsupported message type!") if (!defined($file));
 			next;
 		}
 
