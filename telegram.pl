@@ -55,7 +55,7 @@ my $last_server;
 my $sendchan = undef;
 
 sub telegram_getupdates($);
-sub telegram_send_message($$;$);
+sub telegram_send_message($$;$$);
 sub telegram_https($$$$);
 
 sub telegram_send_to_irc($;$) {
@@ -319,13 +319,14 @@ sub telegram_https($$$$) {
 	telegram_connect($source);
 }
 
-sub telegram_send_message($$;$) {
-	my ($chat, $msg, $reply_markup) = @_;
+sub telegram_send_message($$;$$) {
+	my ($chat, $msg, $reply_markup, $quiet) = @_;
 
 	utf8::decode($msg);
 
 	my $body = { chat_id => $chat, text => $msg, reply_markup => $reply_markup };
 	$body->{reply_markup} = {remove_keyboard => JSON::true} if (!defined($reply_markup));
+	$body->{disable_notification} = JSON::true if ($quiet);
 	$body = encode_json($body);
 	telegram_https("/bot${token}/sendMessage", $body, undef, undef);
 	print $body if ($debug);
@@ -366,6 +367,9 @@ sub telegram_signal {
 
 	return if (!$query && !grep(/$matchPattern/, $msg) && ((!defined($sendchan)) || $sendchan ne $target));
 
+	my $quiet = undef;
+	$quiet = 1 if (!$query && !grep(/$matchPattern/, $msg));
+
 	my $reply_markup;
 	if ((!defined($last_target)) ||
 	    (!defined($last_server)) ||
@@ -383,7 +387,7 @@ sub telegram_signal {
 		};
 	}
 
-	telegram_send_message($user, "${from}: ${msg}", $reply_markup);
+	telegram_send_message($user, "${from}: ${msg}", $reply_markup, $quiet);
 }
 
 sub telegram_signal_private {
