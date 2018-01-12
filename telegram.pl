@@ -1,4 +1,4 @@
-# Copyright (c) 2017 Michael Gernoth <michael@gernoth.net>
+# Copyright (c) 2017-2018 Michael Gernoth <michael@gernoth.net>
 #
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to
@@ -35,6 +35,7 @@ my $cfgfile = $ENV{HOME}."/.irssi/telegram.cfg";
 my $token;
 my $user;
 my $matchPattern;
+my $backlog;
 
 my $idletime;
 my $longpoll;
@@ -53,6 +54,7 @@ my %servers; # maps channels to servers
 my $last_target;
 my $last_server;
 my $sendchan = undef;
+my $log;
 
 sub telegram_getupdates($);
 sub telegram_send_message($$;$$);
@@ -369,7 +371,15 @@ sub telegram_signal {
 	print "Idle: " . (time() - $last_ts) if ($debug);
 	return if ((time() - $last_ts < $idletime) && !$debug);
 
-	return if (!$query && !grep(/$matchPattern/, $msg) && ((!defined($sendchan)) || $sendchan ne $target));
+	my $text = "${from}: ${msg}";
+
+	if (!$query && !grep(/$matchPattern/, $msg) && ((!defined($sendchan)) || $sendchan ne $target)) {
+		if ($backlog) {
+			push @{$log->{$target}}, $text;
+			shift @{$log->{$target}} if ($#{$log->{$target}} >= $backlog);
+		}
+		return;
+	}
 
 	my $quiet = undef;
 	$quiet = 1 if (!$query && !grep(/$matchPattern/, $msg));
@@ -391,7 +401,12 @@ sub telegram_signal {
 		};
 	}
 
-	telegram_send_message($user, "${from}: ${msg}", $reply_markup, $quiet);
+	if (defined($log->{$target})) {
+		$text = join("\n", @{$log->{$target}}). "\n${text}";
+		delete($log->{$target});
+	}
+
+	telegram_send_message($user, $text, $reply_markup, $quiet);
 }
 
 sub telegram_signal_private {
@@ -411,6 +426,8 @@ $token = $cfg->param('token') || die "No token defined in config!";
 $user = $cfg->param('user') || die "No user defined in config!";
 $matchPattern = $cfg->param('matchPattern');
 $matchPattern = "." if (!defined($matchPattern));
+$backlog = $cfg->param('backlog');
+$backlog = 0 if (!defined($backlog));
 
 $idletime = $cfg->param('idletime');
 $idletime = "300" if (!defined($idletime));
