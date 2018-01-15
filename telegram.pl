@@ -418,6 +418,8 @@ sub telegram_signal_private {
 sub telegram_idle {
         my ($text, $server, $item) = @_;
 
+	delete($log->{$item->{name}});
+
 	$last_ts = time();
 }
 
