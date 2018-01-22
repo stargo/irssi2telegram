@@ -53,6 +53,8 @@ my $offset = -1;
 my %servers; # maps channels to servers
 my $last_target;
 my $last_server;
+my $last_msg_target;
+my $last_msg_server;
 my $sendchan = undef;
 my $log;
 
@@ -120,6 +122,29 @@ sub telegram_send_to_irc($;$) {
 
 		if ((!defined($target)) || (!defined($server))) {
 			telegram_send_message($user, "Can't determine target to send message to. Please specify either a channel with #channel or query with \@nick.");
+			return;
+		}
+
+		if (defined($last_msg_server) && defined($last_msg_target) &&
+		    (($last_msg_server->{tag} ne $server->{tag}) ||
+		     ($last_msg_target ne $target))) {
+			my $reply_markup;
+
+			my $dst = $last_msg_target;
+			$dst = '@'.$dst if ($dst !~ m/^#/);
+			my @kbd = [{text => "${dst} ${text}"}];
+
+			$dst = $target;
+			$dst = '@'.$dst if ($dst !~ m/^#/);
+			push @{$kbd[0]}, {text => "${dst} ${text}"};
+			$reply_markup = {
+				keyboard => [
+					@kbd,
+				],
+				one_time_keyboard => JSON::true,
+			};
+
+			telegram_send_message($user, "->?", $reply_markup);
 			return;
 		}
 
@@ -400,6 +425,9 @@ sub telegram_signal {
 			one_time_keyboard => JSON::true,
 		};
 	}
+
+	$last_msg_server = $server;
+	$last_msg_target = $target;
 
 	if (defined($log->{$target})) {
 		$text = join("\n", @{$log->{$target}}). "\n${text}";
