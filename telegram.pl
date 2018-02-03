@@ -170,7 +170,7 @@ sub telegram_handle_message {
 		next if (!defined($msg->{update_id}));
 		#Ignore messages already seen
 		next if ($msg->{update_id} <= $offset);
-		$next_offset = $msg->{update_id};
+		$next_offset = $msg->{update_id} if ($msg->{update_id} > $next_offset);
 
 		$msg->{message} = $msg->{edited_message} if (defined($msg->{edited_message}) && (!defined($msg->{message})));
 
