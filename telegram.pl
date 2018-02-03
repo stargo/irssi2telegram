@@ -163,12 +163,14 @@ sub telegram_handle_message {
 	return if (!$json->{ok});
 	return if (!defined($json->{result}));
 
+	my $next_offset = -1;
+
 	foreach my $msg (@{$json->{result}}) {
 		#Ignore messages without id
 		next if (!defined($msg->{update_id}));
 		#Ignore messages already seen
 		next if ($msg->{update_id} <= $offset);
-		$offset = $msg->{update_id};
+		$next_offset = $msg->{update_id};
 
 		$msg->{message} = $msg->{edited_message} if (defined($msg->{edited_message}) && (!defined($msg->{message})));
 
@@ -221,6 +223,8 @@ sub telegram_handle_message {
 
 		telegram_send_to_irc($text);
 	}
+	print("getUpdates offset ${offset} -> ${next_offset}") if ($debug);
+	$offset = $next_offset;
 }
 
 sub telegram_handle_response {
