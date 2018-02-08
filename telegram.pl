@@ -388,8 +388,6 @@ sub telegram_signal {
 	my $query = 0;
 	my $from = $nick;
 
-	telegram_getupdates(undef) if ($last_poll < (time() - ($longpoll * 2)));
-
 	if (!defined($target)) {
 		$target = $nick;
 		$query = 1;
@@ -457,6 +455,13 @@ sub telegram_idle {
 	$last_ts = time();
 }
 
+sub telegram_timer {
+	if ($last_poll < (time() - ($longpoll * 2))) {
+		print "Restarting telegram longpoll";
+		telegram_getupdates(undef);
+	}
+}
+
 $cfg = new Config::Simple($cfgfile) || die "Can't open ${cfgfile}: $!";
 $token = $cfg->param('token') || die "No token defined in config!";
 $user = $cfg->param('user') || die "No user defined in config!";
@@ -479,6 +484,7 @@ $localPath = $cfg->param('localPath');
 $debug = $cfg->param('debug');
 
 telegram_getupdates(undef);
+Irssi::timeout_add(10 * 1000, \&telegram_timer, undef);
 
 Irssi::signal_add("message public", "telegram_signal");
 Irssi::signal_add("message private", "telegram_signal_private");
