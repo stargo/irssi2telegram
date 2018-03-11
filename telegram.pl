@@ -465,17 +465,14 @@ sub telegram_timer {
 $cfg = new Config::Simple($cfgfile) || die "Can't open ${cfgfile}: $!";
 $token = $cfg->param('token') || die "No token defined in config!";
 $user = $cfg->param('user') || die "No user defined in config!";
-$matchPattern = $cfg->param('matchPattern');
-$matchPattern = "." if (!defined($matchPattern));
-$backlog = $cfg->param('backlog');
-$backlog = 0 if (!defined($backlog));
+$matchPattern = $cfg->param('matchPattern') // ".";
+$backlog = $cfg->param('backlog') // 0;
+$backlog = int($backlog);
 
-$idletime = $cfg->param('idletime');
-$idletime = "300" if (!defined($idletime));
+$idletime = $cfg->param('idletime') // 300;
 $idletime = int($idletime);
 
-$longpoll = $cfg->param('longpoll');
-$longpoll = "600" if (!defined($longpoll));
+$longpoll = $cfg->param('longpoll') // 600;
 $longpoll = int($longpoll);
 
 $baseURL = $cfg->param('baseURL');
