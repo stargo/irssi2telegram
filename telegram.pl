@@ -39,6 +39,7 @@ my $backlog;
 
 my $idletime;
 my $longpoll;
+my $numfollowup;
 
 my $baseURL;
 my $localPath;
@@ -49,6 +50,7 @@ my $debug;
 
 my $last_poll = 0;
 my $last_ts = 0;
+my $followup = 0;
 my $offset = -1;
 my %servers; # maps channels to servers
 my $last_target;
@@ -97,7 +99,8 @@ sub telegram_send_to_irc($;$) {
 		if (defined $srv) {
 			if (length($text)) {
 				$srv->command($cmd);
-				telegram_send_message($user, "->${chan}");
+				$followup = $numfollowup;
+				telegram_send_message($user, "->${chan}".($followup?" (f'up: ".$followup.")":""));
 			} else {
 				telegram_send_message($user, "${chan} on $srv->{tag} ".(defined($modifier)?"(${modifier}) ":"")."selected as new target.");
 				if ($modifier eq "all") {
@@ -153,7 +156,8 @@ sub telegram_send_to_irc($;$) {
 		my $cmd = "msg ${target} ".$text;
 		print $cmd if ($debug);
 		$server->command($cmd);
-		telegram_send_message($user, "->${target}");
+		$followup = $numfollowup;
+		telegram_send_message($user, "->${target}".($followup?" (f'up: ".$followup.")":""));
 	}
 }
 
@@ -402,12 +406,21 @@ sub telegram_signal {
 
 	my $text = "${from}: ${msg}";
 
-	if (!$query && !grep(/$matchPattern/, $msg) && ((!defined($sendchan)) || $sendchan ne $target)) {
+	if (   !$query
+	    && !grep(/$matchPattern/, $msg)
+	    && ((!defined($sendchan)) || $sendchan ne $target)
+	    && (!$followup || (!defined($last_target)) || $target ne $last_target)
+	   ) {
 		if ($backlog) {
 			push @{$log->{$target}}, $text;
 			shift @{$log->{$target}} if ($#{$log->{$target}} >= $backlog);
 		}
 		return;
+	}
+
+	if ($followup && defined($last_target) && $target eq $last_target) {
+		$text = '('.$followup.') '.$text unless $query;
+		$followup--;
 	}
 
 	my $quiet = undef;
@@ -468,6 +481,9 @@ $user = $cfg->param('user') || die "No user defined in config!";
 $matchPattern = $cfg->param('matchPattern') // ".";
 $backlog = $cfg->param('backlog') // 0;
 $backlog = int($backlog);
+
+$numfollowup = $cfg->param('numfollowup') // 0;
+$numfollowup = int($numfollowup);
 
 $idletime = $cfg->param('idletime') // 300;
 $idletime = int($idletime);
