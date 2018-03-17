@@ -100,7 +100,11 @@ sub telegram_send_to_irc($;$) {
 		if (defined $srv) {
 			if (length($text)) {
 				$srv->command($cmd);
-				$followup = $numfollowup;
+				if ($chan =~ m/^#/) {
+					$followup = $numfollowup;
+				} else {
+					$followup = 0;
+				}
 				telegram_send_message($user, "->${chan}".($followup?" (f'up: ".$followup.")":""));
 			} else {
 				telegram_send_message($user, "${chan} on $srv->{tag} ".(defined($modifier)?"(${modifier}) ":"")."selected as new target.");
@@ -157,7 +161,11 @@ sub telegram_send_to_irc($;$) {
 		my $cmd = "msg ${target} ".$text;
 		print $cmd if ($debug);
 		$server->command($cmd);
-		$followup = $numfollowup;
+		if ($target =~ m/^#/) {
+			$followup = $numfollowup;
+		} else {
+			$followup = 0;
+		}
 		telegram_send_message($user, "->${target}".($followup?" (f'up: ".$followup.")":""));
 	}
 }
