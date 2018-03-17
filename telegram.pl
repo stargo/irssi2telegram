@@ -246,7 +246,7 @@ sub telegram_handle_response {
 
 		telegram_https("/file/bot${token}/".$json->{result}->{file_path}, undef, undef, $data);
 	} else {
-		my $fname = Digest::MD5::md5_base64($data->{file_id} . $data->{file_path});
+		my $fname = Digest::MD5::md5_base64($data->{file_id} . $data->{file_path} . $rsp);
 		$fname =~ s/\+/-/g;
 		$fname =~ s/\//_/g;
 		if ($data->{file_path} =~ m/(\.[^.]*)$/) {
