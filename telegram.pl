@@ -157,7 +157,7 @@ sub telegram_send_to_irc($;$) {
 		print $cmd if ($debug);
 		$server->command($cmd);
 		my $fupstr = "";
-		if ($target =~ m/^#/) {
+		if (($target =~ m/^#/) && (($chanmod{$target} // "") ne 'all')) {
 			$chanmod{$target} = $numfollowup;
 			$fupstr = " (f'up: ".$numfollowup.")";
 		}
