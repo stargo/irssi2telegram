@@ -74,7 +74,11 @@ sub telegram_send_to_irc($;$) {
 
 		if ($chan =~ m/^(#.+),(.+)$/) {
 			$chan = $1;
-			$chanmod{$chan} = $2;
+			my $mod = $2;
+			if (($mod ne 'all') && ($mod =~ /\D/)) {
+				$mod = 0;
+			}
+			$chanmod{$chan} = $mod;
 		}
 		my $query = ($chan !~ m/^#/);
 
