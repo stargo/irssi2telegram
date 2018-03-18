@@ -458,12 +458,14 @@ sub telegram_signal {
 	    ($server->{tag} ne $last_server->{tag})) {
 		my $dst = $target;
 		$dst = '@'.$dst if ($dst !~ m/^#/);
-		my @kbd = [{text => $dst}];
-		push @{$kbd[0]}, {text => $dst.",all"} if ($dst =~ m/^#/);
+		my @kbd;
+		if ($dst =~ m/^#/) {
+			@kbd = [{text => $dst.",stop"}, {text => $dst.",".$numfollowup}, {text => $dst.",all"}];
+		} else {
+			@kbd = [{text => $dst}];
+		}
 		$reply_markup = {
-			keyboard => [
-					@kbd,
-			],
+			keyboard => [ @kbd ],
 			one_time_keyboard => JSON::true,
 		};
 	}
