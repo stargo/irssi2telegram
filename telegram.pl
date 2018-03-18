@@ -430,8 +430,8 @@ sub telegram_signal {
 	my $text = "${from}: ${msg}";
 
 	if (   !$query
-	    && !grep(/$matchPattern/, $msg)
 	    && !telegram_wantfup($target)
+	    && !grep(/$matchPattern/, $msg)
 	   ) {
 		if ($backlog) {
 			push @{$log->{$target}}, $text;
