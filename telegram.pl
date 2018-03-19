@@ -460,12 +460,18 @@ sub telegram_signal {
 		$dst = '@'.$dst if ($dst !~ m/^#/);
 		my @kbd;
 		if ($dst =~ m/^#/) {
-			@kbd = [{text => $dst.",stop"}, {text => $dst.",".$numfollowup}, {text => $dst.",all"}];
+			@kbd = [{text => $dst.",".$numfollowup}, {text => $dst.",all"}];
+			unshift @{$kbd[0]}, {text => $dst.",stop"} if ($chanmod{$target});
 		} else {
 			@kbd = [{text => $dst}];
 		}
 		$reply_markup = {
 			keyboard => [ @kbd ],
+			one_time_keyboard => JSON::true,
+		};
+	} elsif ($chanmod{$target} && $target =~ m/^#/) {
+		$reply_markup = {
+			keyboard => [[{text => $target.",stop"}]],
 			one_time_keyboard => JSON::true,
 		};
 	}
