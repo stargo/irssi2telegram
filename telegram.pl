@@ -51,14 +51,13 @@ my $debug;
 
 my $last_poll = 0;
 my $last_ts = 0;
-my $followup = 0;
 my $offset = -1;
 my %servers; # maps channels to servers
+my %chanmod; # maps modifiers to channels
 my $last_target;
 my $last_server;
 my $last_msg_target;
 my $last_msg_server;
-my $sendchan = undef;
 my $log;
 
 sub telegram_getupdates($);
@@ -73,18 +72,22 @@ sub telegram_send_to_irc($;$) {
 		(my $chan, my $text) = split(/ /, $text, 2);
 		$chan =~ s/^\@//;
 
-		my $modifier;
 		if ($chan =~ m/^(#.+),(.+)$/) {
 			$chan = $1;
-			$modifier = $2;
+			my $mod = $2;
+			if (($mod ne 'all') && ($mod =~ /\D/)) {
+				$mod = 0;
+			}
+			$chanmod{$chan} = $mod;
 		}
+		my $query = ($chan !~ m/^#/);
 
 		my $cmd = "msg ${chan} ".$text;
 		print $cmd if ($debug);
 		my $srv = $servers{$chan};
 		if (!defined($srv)) {
 			my @targets = ();
-			if ($chan =~ m/^#/) {
+			if (!$query) {
 				@targets = Irssi::channels();
 			} else {
 				@targets = Irssi::queries();
@@ -100,19 +103,15 @@ sub telegram_send_to_irc($;$) {
 		if (defined $srv) {
 			if (length($text)) {
 				$srv->command($cmd);
-				if ($chan =~ m/^#/) {
-					$followup = $numfollowup;
-				} else {
-					$followup = 0;
+				my $fupstr = "";
+				if ((!$query) && ($chanmod{$chan} ne 'all')) {
+					$chanmod{$chan} = $numfollowup;
+					$fupstr = " (f'up: ".$numfollowup.")";
 				}
-				telegram_send_message($user, "->${chan}".($followup?" (f'up: ".$followup.")":""));
+				telegram_send_message($user, "->${chan}".$fupstr);
 			} else {
-				telegram_send_message($user, "${chan} on $srv->{tag} ".(defined($modifier)?"(${modifier}) ":"")."selected as new target.");
-				if ($modifier eq "all") {
-					$sendchan = $chan;
-				} else {
-					$sendchan = undef;
-				}
+				my $modstr = defined($chanmod{$chan}) ? " (f'up: ".$chanmod{$chan}.")" : "";
+				telegram_send_message($user, "${chan} on $srv->{tag}".$modstr." selected as new target.");
 			}
 			$last_target = $chan;
 			$last_server = $srv;
@@ -161,12 +160,12 @@ sub telegram_send_to_irc($;$) {
 		my $cmd = "msg ${target} ".$text;
 		print $cmd if ($debug);
 		$server->command($cmd);
-		if ($target =~ m/^#/) {
-			$followup = $numfollowup;
-		} else {
-			$followup = 0;
+		my $fupstr = "";
+		if (($target =~ m/^#/) && (($chanmod{$target} // "") ne 'all')) {
+			$chanmod{$target} = $numfollowup;
+			$fupstr = " (f'up: ".$numfollowup.")";
 		}
-		telegram_send_message($user, "->${target}".($followup?" (f'up: ".$followup.")":""));
+		telegram_send_message($user, "->${target}".$fupstr);
 	}
 }
 
@@ -400,6 +399,20 @@ sub telegram_getupdates($) {
 	telegram_https("/bot${token}/getUpdates?offset=".($offset + 1)."&timeout=${longpoll}", undef, 1, undef);
 }
 
+sub telegram_wantfup($) {
+	my $target = shift;
+	my $mod = $chanmod{$target};
+	if (defined($mod)) {
+		if ($mod eq 'all') {
+			return 1;
+		} elsif ($mod > 0) {
+			$chanmod{$target} = $mod - 1;
+			return $mod;
+		}
+	}
+	return 0;
+}
+
 sub telegram_signal {
 	my ($server, $msg, $nick, $address, $target) = @_;
 
@@ -421,9 +434,8 @@ sub telegram_signal {
 	my $text = "${from}: ${msg}";
 
 	if (   !$query
+	    && !telegram_wantfup($target)
 	    && !grep(/$matchPattern/, $msg)
-	    && ((!defined($sendchan)) || $sendchan ne $target)
-	    && (!$followup || (!defined($last_target)) || $target ne $last_target)
 	   ) {
 		if ($backlog) {
 			push @{$log->{$target}}, $text;
@@ -432,9 +444,8 @@ sub telegram_signal {
 		return;
 	}
 
-	if ($followup && defined($last_target) && $target eq $last_target) {
-		$text = '('.$followup.') '.$text unless $query;
-		$followup--;
+	if (defined($chanmod{$target})) {
+		$text = '('.$chanmod{$target}.') '.$text;
 	}
 
 	my $quiet = undef;
@@ -447,12 +458,14 @@ sub telegram_signal {
 	    ($server->{tag} ne $last_server->{tag})) {
 		my $dst = $target;
 		$dst = '@'.$dst if ($dst !~ m/^#/);
-		my @kbd = [{text => $dst}];
-		push @{$kbd[0]}, {text => $dst.",all"} if ($dst =~ m/^#/);
+		my @kbd;
+		if ($dst =~ m/^#/) {
+			@kbd = [{text => $dst.",stop"}, {text => $dst.",".$numfollowup}, {text => $dst.",all"}];
+		} else {
+			@kbd = [{text => $dst}];
+		}
 		$reply_markup = {
-			keyboard => [
-					@kbd,
-			],
+			keyboard => [ @kbd ],
 			one_time_keyboard => JSON::true,
 		};
 	}
