@@ -151,6 +151,7 @@ sub telegram_send_to_irc($;$) {
 					@kbd,
 				],
 				one_time_keyboard => JSON::true,
+				resize_keyboard => JSON::true,
 			};
 
 			telegram_send_message($user, "->?", $reply_markup);
@@ -468,11 +469,13 @@ sub telegram_signal {
 		$reply_markup = {
 			keyboard => [ @kbd ],
 			one_time_keyboard => JSON::true,
+			resize_keyboard => JSON::true,
 		};
 	} elsif ($chanmod{$target} && $target =~ m/^#/) {
 		$reply_markup = {
 			keyboard => [[{text => $target.",stop"}]],
 			one_time_keyboard => JSON::true,
+			resize_keyboard => JSON::true,
 		};
 	}
 
