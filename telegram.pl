@@ -141,15 +141,13 @@ sub telegram_send_to_irc($;$) {
 
 			my $dst = $last_msg_target;
 			$dst = '@'.$dst if ($dst !~ m/^#/);
-			my @kbd = [{text => "${dst} ${text}"}];
+			my @kbd = [[{text => "${dst} ${text}"}]];
 
 			$dst = $target;
 			$dst = '@'.$dst if ($dst !~ m/^#/);
-			push @{$kbd[0]}, {text => "${dst} ${text}"};
+			push @{$kbd[0]}, [{text => "${dst} ${text}"}];
 			$reply_markup = {
-				keyboard => [
-					@kbd,
-				],
+				keyboard => @kbd,
 				one_time_keyboard => JSON::true,
 				resize_keyboard => JSON::true,
 			};
@@ -461,13 +459,13 @@ sub telegram_signal {
 		$dst = '@'.$dst if ($dst !~ m/^#/);
 		my @kbd;
 		if ($dst =~ m/^#/) {
-			@kbd = [{text => $dst.",".$numfollowup}, {text => $dst.",all"}];
-			unshift @{$kbd[0]}, {text => $dst.",stop"} if ($chanmod{$target});
+			@kbd = [[{text => $dst.",".$numfollowup}],[{text => $dst.",all"}]];
+			unshift @{$kbd[0]}, [{text => $dst.",stop"}] if ($chanmod{$target});
 		} else {
-			@kbd = [{text => $dst}];
+			@kbd = [[{text => $dst}]];
 		}
 		$reply_markup = {
-			keyboard => [ @kbd ],
+			keyboard => @kbd,
 			one_time_keyboard => JSON::true,
 			resize_keyboard => JSON::true,
 		};
