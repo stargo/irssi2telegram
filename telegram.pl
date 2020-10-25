@@ -494,6 +494,18 @@ sub telegram_signal_private {
 	return telegram_signal($server, $msg, $nick, $address, undef);
 }
 
+sub telegram_signal_action {
+	my ($server, $msg, $nick, $address, $target) = @_;
+
+	return telegram_signal($server, '[ACTION] '.$msg, $nick, $address, $target);
+}
+
+sub telegram_signal_topic {
+	my ($server, $channel, $topic, $nick, $address) = @_;
+
+	return telegram_signal($server, '[CHANGE TOPIC] '.$topic, $nick, $address, $channel);
+}
+
 sub telegram_idle {
         my ($text, $server, $item) = @_;
 
@@ -535,4 +547,9 @@ Irssi::timeout_add(10 * 1000, \&telegram_timer, undef);
 
 Irssi::signal_add("message public", "telegram_signal");
 Irssi::signal_add("message private", "telegram_signal_private");
+Irssi::signal_add("message irc action", "telegram_signal_action");
+Irssi::signal_add("message topic", "telegram_signal_topic");
 Irssi::signal_add('send text', 'telegram_idle');
+
+telegram_send_message($user, "***** script (re)loaded");
+
